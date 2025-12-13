@@ -2,9 +2,7 @@
 
 RAG (Retrieval-Augmented Generation) service for intelligent bug analysis and deduplication.
 
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)]()
-[![Python](https://img.shields.io/badge/python-3.12+-blue)]()
-[![License](https://img.shields.io/badge/license-MIT-green)]()
+[![Tests](https://github.com/apexbridge-tech/bugspotter-intelligence/workflows/Tests/badge.svg)](https://github.com/apexbridge-tech/bugspotter-intelligence/actions) [![Python](https://img.shields.io/badge/python-3.12+-blue)](https://www.python.org/) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ## 🚀 Features
 
@@ -26,7 +24,7 @@ RAG (Retrieval-Augmented Generation) service for intelligent bug analysis and de
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/bugspotter-intelligence.git
+git clone https://github.com/apexbridge-tech/bugspotter-intelligence.git
 cd bugspotter-intelligence
 ```
 
