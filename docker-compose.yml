@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: bugspotter-pgvector
+    ports:
+      - "${DATABASE_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: bugspotter-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./docker/ollama/ollama-init.sh:/ollama-init.sh
+    entrypoint: ["/bin/bash", "/ollama-init.sh"]
+    restart: unless-stopped
+
+volumes:
+  # Declare volume names (no values needed)
+  postgres_data:
+  ollama_data:
