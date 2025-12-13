@@ -1,8 +1,19 @@
+import os
+import sys
 import pytest
 import time
 import httpx
 from testcontainers.core.container import DockerContainer
 from bugspotter_intelligence.config import Settings
+
+
+# Platform-specific testcontainers configuration
+if sys.platform == "win32":
+    # Windows-specific Docker connection
+    os.environ.setdefault("DOCKER_HOST", "npipe:////./pipe/docker_engine")
+
+# Always disable Ryuk (works on all platforms)
+os.environ.setdefault("TESTCONTAINERS_RYUK_DISABLED", "true")
 
 
 @pytest.fixture(scope="session")
