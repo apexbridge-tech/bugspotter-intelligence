@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4"
     log_level: str = "INFO"
     debug: bool = False
+    embedding_provider: str = "local"  # local, openai
+    embedding_model: str | None = None  # Provider-specific model name
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -6,8 +6,8 @@ from datetime import datetime
 class BugRepository:
     """Data access layer for bug_embeddings table"""
 
+    @staticmethod
     async def insert_bug(
-            self,
             conn: AsyncConnection,
             bug_id: str,
             title: str,
@@ -33,8 +33,8 @@ class BugRepository:
             )
             await conn.commit()
 
+    @staticmethod
     async def find_similar(
-            self,
             conn: AsyncConnection,
             embedding: list[float],
             limit: int = 5,
@@ -77,3 +77,5 @@ class BugRepository:
                 }
                 for row in rows
             ]
+
+    
