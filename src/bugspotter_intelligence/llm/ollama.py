@@ -31,7 +31,8 @@ class OllamaProvider(LLMProvider):
             "stream": False
         }
 
-        async with httpx.AsyncClient(timeout=self.API_TIMEOUT) as client:
+        timeout = httpx.Timeout(self.API_TIMEOUT, read=self.API_TIMEOUT)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
                 f"{self.settings.ollama_base_url}/api/generate",
                 json=payload,
