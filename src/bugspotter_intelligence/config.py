@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +21,28 @@ class Settings(BaseSettings):
     debug: bool = False
     embedding_provider: str = "local"  # local, openai
     embedding_model: str | None = None  # Provider-specific model name
+
+    #=== Similarity and Deduplication Settings ===
+    similarity_threshold: float = Field(
+        default=0.75,
+        ge=0.0,
+        le=1.0,
+        description="Cosine similarity threshold for finding similar bugs (0.0-1.0)"
+    )
+
+    duplicate_threshold: float = Field(
+        default=0.90,
+        ge=0.0,
+        le=1.0,
+        description="Similarity threshold for marking as duplicate (0.0-1.0)"
+    )
+
+    max_similar_bugs: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="Maximum number of similar bugs to return"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

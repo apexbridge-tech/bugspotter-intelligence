@@ -1,6 +1,7 @@
 from typing import Optional
 from psycopg import AsyncConnection
 
+from bugspotter_intelligence.config import Settings
 from bugspotter_intelligence.llm import LLMProvider
 from bugspotter_intelligence.db.bug_repository import BugRepository
 from bugspotter_intelligence.services.embeddings import EmbeddingProvider
@@ -16,10 +17,11 @@ class BugQueryService:
     - Get mitigation suggestions
     """
 
-    def __init__(self, llm_provider: LLMProvider, embedding_provider: EmbeddingProvider):
+    def __init__(self, settings: Settings, llm_provider: LLMProvider, embedding_provider: EmbeddingProvider):
         self.llm = llm_provider
         self.embeddings = embedding_provider
         self.repo = BugRepository()
+        self.settings = settings
 
     async def get_bug(
             self,
@@ -37,8 +39,8 @@ class BugQueryService:
             self,
             conn: AsyncConnection,
             bug_id: str,
-            similarity_threshold: float = 0.7,
-            limit: int = 5
+            similarity_threshold: float | None = None,
+            limit: int | None = None
     ) -> dict:
         """
         Query: Find bugs similar to the given bug
@@ -56,9 +58,8 @@ class BugQueryService:
         if not bug:
             raise ValueError(f"Bug {bug_id} not found")
 
-        # Get embedding from database
-        # TODO: We need to also fetch the embedding! Update get_bug to include it?
-        # For now, let's search by fetching embedding separately
+        threshold = similarity_threshold if similarity_threshold is not None else self.settings.similarity_threshold
+        max_bugs = limit if limit is not None else self.settings.max_similar_bugs
 
         async with conn.cursor() as cursor:
             await cursor.execute(
@@ -75,22 +76,23 @@ class BugQueryService:
         similar_bugs = await self.repo.find_similar(
             conn=conn,
             embedding=embedding,
-            limit=limit + 1,  # +1 because it includes itself
-            threshold=similarity_threshold
+            limit=max_bugs + 1,  # +1 because it includes itself
+            threshold=threshold
         )
 
         # Remove the bug itself from results
-        similar_bugs = [b for b in similar_bugs if b["bug_id"] != bug_id][:limit]
+        similar_bugs = [b for b in similar_bugs if b["bug_id"] != bug_id][:max_bugs]
 
         # Determine if it's a duplicate
         is_duplicate = False
-        if similar_bugs and similar_bugs[0]["similarity"] >= 0.9:
+        if similar_bugs and similar_bugs[0]["similarity"] >= self.settings.duplicate_threshold:
             is_duplicate = True
 
         return {
             "bug_id": bug_id,
             "is_duplicate": is_duplicate,
-            "similar_bugs": similar_bugs
+            "similar_bugs": similar_bugs,
+            "threshold_used": threshold
         }
 
     async def get_mitigation_suggestion(
