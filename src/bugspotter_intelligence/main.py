@@ -1,12 +1,12 @@
 import logging
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from bugspotter_intelligence.config import Settings
-from bugspotter_intelligence.api.routes.ask import router as ask_router
 from bugspotter_intelligence.db.migrations import create_tables
-from bugspotter_intelligence.db.database import init_db, close_db, get_db_connection
+from bugspotter_intelligence.db.database import init_db, close_db
+from bugspotter_intelligence.api.routes import ask, bugs
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,7 +49,8 @@ async def lifespan(app: FastAPI):
 
 
 def register_routes(app: FastAPI) -> None:
-    app.include_router(ask_router, prefix=API_PREFIX)
+    app.include_router(ask.router, prefix=API_PREFIX)
+    app.include_router(bugs.router, prefix=API_PREFIX)
 
 
 def create_app() -> FastAPI:
@@ -75,25 +76,6 @@ def create_app() -> FastAPI:
     async def health_check():
         return {"status": "healthy"}
 
-    @app.get("/db-test")
-    async def db_test(conn=Depends(get_db_connection)):
-        """Test database connection"""
-        async with conn.cursor() as cursor:
-            await cursor.execute("SELECT version();")
-            result = await cursor.fetchone()
-            return {"database_version": result[0] if result else None}
-
-    @app.get("/db-schema")
-    async def db_schema(conn=Depends(get_db_connection)):
-        """Check database schema"""
-        async with conn.cursor() as cursor:
-            await cursor.execute("""
-                                 SELECT table_name
-                                 FROM information_schema.tables
-                                 WHERE table_schema = 'public'
-                                 """)
-            tables = await cursor.fetchall()
-            return {"tables": [t[0] for t in tables]}
 
     return app
 
