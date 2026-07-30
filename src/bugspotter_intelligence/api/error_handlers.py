@@ -23,10 +23,10 @@ async def llm_unavailable_handler(
     LLM-backed endpoints (ask, mitigation) hit this path.
     """
     logger.warning(
-        "LLM backend unavailable on %s %s: %s",
+        "LLM backend unavailable on %s %r: %r",
         request.method,
         request.url.path,
-        exc,
+        str(exc),
     )
     return JSONResponse(
         status_code=503,
