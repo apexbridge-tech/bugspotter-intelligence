@@ -78,7 +78,10 @@ async def test_generate_still_returns_just_text(provider):
 
 @pytest.mark.asyncio
 async def test_http_error_wrapped_with_cause(provider):
-    """5xx from Ollama → RuntimeError with original HTTPStatusError as __cause__."""
+    """5xx from Ollama → LLMBackendUnavailableError (503) with the original
+    HTTPStatusError preserved as __cause__ (a down backend is not a 500)."""
+    from bugspotter_intelligence.llm.exceptions import LLMBackendUnavailableError
+
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = MagicMock()
         mock_response.status_code = 500
@@ -89,7 +92,7 @@ async def test_http_error_wrapped_with_cause(provider):
         mock_post = AsyncMock(return_value=mock_response)
         mock_client.return_value.__aenter__.return_value.post = mock_post
 
-        with pytest.raises(RuntimeError, match="500") as ei:
+        with pytest.raises(LLMBackendUnavailableError, match="500") as ei:
             await provider.generate_with_usage(prompt="hi")
 
     assert isinstance(ei.value.__cause__, httpx.HTTPStatusError)

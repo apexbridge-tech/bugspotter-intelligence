@@ -8,8 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from bugspotter_intelligence.api.error_handlers import llm_unavailable_handler
 from bugspotter_intelligence.api.routes import admin, ask, bugs, intelligence, rules, search
 from bugspotter_intelligence.config import Settings
+from bugspotter_intelligence.llm.exceptions import LLMBackendUnavailableError
 from bugspotter_intelligence.db.database import close_db, get_pool, init_db
 from bugspotter_intelligence.db.migrations import create_tables
 from bugspotter_intelligence.rate_limiting import close_redis, init_redis
@@ -125,6 +127,9 @@ def create_app() -> FastAPI:
             status_code=422,
             content={"detail": jsonable_encoder(errors)},
         )
+
+    # A down LLM backend (Ollama/Claude/OpenAI) is transient -> 503, not 500.
+    app.add_exception_handler(LLMBackendUnavailableError, llm_unavailable_handler)
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):

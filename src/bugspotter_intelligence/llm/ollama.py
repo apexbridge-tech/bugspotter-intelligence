@@ -2,6 +2,7 @@ import os
 import httpx
 from typing import Optional
 from .base import LLMProvider, Usage
+from .exceptions import LLMBackendUnavailableError
 from .factory import register_provider
 
 @register_provider("ollama")
@@ -42,41 +43,54 @@ class OllamaProvider(LLMProvider):
         }
 
         timeout = httpx.Timeout(self.API_TIMEOUT, read=self.API_TIMEOUT)
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(
-                f"{self.settings.ollama_base_url}/api/generate",
-                json=payload,
-            )
-
-            try:
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    f"{self.settings.ollama_base_url}/api/generate",
+                    json=payload,
+                )
                 response.raise_for_status()
                 result = response.json()
                 text = result["response"]
-            except httpx.HTTPStatusError as e:
-                raise RuntimeError(
-                    f"Ollama API error: {e.response.status_code} - {e.response.text}"
+        except httpx.RequestError as e:
+            # Transport-level failure - connection refused, timeout, DNS, etc.
+            # Ollama is unreachable: a down dependency, not an internal error.
+            # Surfaced as HTTP 503 at the API boundary.
+            raise LLMBackendUnavailableError(
+                f"Ollama backend unavailable at {self.settings.ollama_base_url}: {e}"
+            ) from e
+        except httpx.HTTPStatusError as e:
+            # 5xx from Ollama means the backend is down/overloaded -> 503.
+            # Other statuses (e.g. 4xx) are genuine request errors.
+            if e.response.status_code >= 500:
+                raise LLMBackendUnavailableError(
+                    f"Ollama backend error {e.response.status_code} "
+                    f"at {self.settings.ollama_base_url}"
                 ) from e
-            except (ValueError, KeyError, TypeError) as e:
-                # ValueError covers JSONDecodeError (malformed body); KeyError
-                # covers a dict without "response"; TypeError covers a JSON
-                # body that decoded to a non-dict (list / primitive) where
-                # subscript access fails.
-                raise RuntimeError(
-                    f"Unexpected Ollama response format: {response.text}"
-                ) from e
+            raise RuntimeError(
+                f"Ollama API error: {e.response.status_code} - {e.response.text}"
+            ) from e
+        except (ValueError, KeyError, TypeError) as e:
+            # ValueError covers JSONDecodeError (malformed body); KeyError
+            # covers a dict without "response"; TypeError covers a JSON
+            # body that decoded to a non-dict (list / primitive) where
+            # subscript access fails.
+            raise RuntimeError(
+                f"Unexpected Ollama response format: {response.text}"
+            ) from e
 
-            usage = Usage(
-                input=result.get("prompt_eval_count"),
-                output=result.get("eval_count"),
-                extra={
-                    k: result[k]
-                    for k in (
-                        "eval_duration",
-                        "prompt_eval_duration",
-                        "total_duration",
-                        "load_duration",
-                    )
-                    if k in result
-                },
-            )
-            return text, usage
+        usage = Usage(
+            input=result.get("prompt_eval_count"),
+            output=result.get("eval_count"),
+            extra={
+                k: result[k]
+                for k in (
+                    "eval_duration",
+                    "prompt_eval_duration",
+                    "total_duration",
+                    "load_duration",
+                )
+                if k in result
+            },
+        )
+        return text, usage
