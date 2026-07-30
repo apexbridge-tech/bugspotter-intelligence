@@ -94,6 +94,74 @@ class TestOllamaProviderUnit:
 
             assert "500" in str(exc_info.value)
 
+    @pytest.mark.asyncio
+    async def test_connection_error_maps_to_backend_unavailable(self, ollama_provider):
+        """Ollama unreachable -> LLMBackendUnavailableError (becomes HTTP 503)."""
+        import httpx
+        from bugspotter_intelligence.llm.exceptions import LLMBackendUnavailableError
+
+        with patch('httpx.AsyncClient') as mock_client:
+            mock_post = AsyncMock(side_effect=httpx.ConnectError("connection refused"))
+            mock_client.return_value.__aenter__.return_value.post = mock_post
+
+            with pytest.raises(LLMBackendUnavailableError):
+                await ollama_provider.generate("test")
+
+    @pytest.mark.asyncio
+    async def test_timeout_maps_to_backend_unavailable(self, ollama_provider):
+        """A read/connect timeout is a transient backend failure -> 503, not 500."""
+        import httpx
+        from bugspotter_intelligence.llm.exceptions import LLMBackendUnavailableError
+
+        with patch('httpx.AsyncClient') as mock_client:
+            mock_post = AsyncMock(side_effect=httpx.ReadTimeout("timed out"))
+            mock_client.return_value.__aenter__.return_value.post = mock_post
+
+            with pytest.raises(LLMBackendUnavailableError):
+                await ollama_provider.generate("test")
+
+    @pytest.mark.asyncio
+    async def test_5xx_maps_to_backend_unavailable(self, ollama_provider):
+        """A 5xx from Ollama means the backend is down/overloaded -> 503."""
+        import httpx
+        from bugspotter_intelligence.llm.exceptions import LLMBackendUnavailableError
+
+        with patch('httpx.AsyncClient') as mock_client:
+            mock_response = MagicMock()
+            mock_response.status_code = 503
+            mock_response.text = "service unavailable"
+            mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "Server error", request=MagicMock(), response=mock_response
+            )
+            mock_post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.__aenter__.return_value.post = mock_post
+
+            with pytest.raises(LLMBackendUnavailableError):
+                await ollama_provider.generate("test")
+
+    @pytest.mark.asyncio
+    async def test_4xx_stays_a_generic_error(self, ollama_provider):
+        """A 4xx from Ollama is a genuine request error, NOT a backend-down 503."""
+        import httpx
+        from bugspotter_intelligence.llm.exceptions import LLMBackendUnavailableError
+
+        with patch('httpx.AsyncClient') as mock_client:
+            mock_response = MagicMock()
+            mock_response.status_code = 400
+            mock_response.text = "bad request"
+            mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "Bad request", request=MagicMock(), response=mock_response
+            )
+            mock_post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.__aenter__.return_value.post = mock_post
+
+            with pytest.raises(RuntimeError):
+                await ollama_provider.generate("test")
+            # and specifically NOT the backend-unavailable type
+            with pytest.raises(Exception) as exc_info:
+                await ollama_provider.generate("test")
+            assert not isinstance(exc_info.value, LLMBackendUnavailableError)
+
 
 @pytest.mark.integration
 class TestOllamaProviderIntegration:
